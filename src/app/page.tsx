@@ -33,6 +33,11 @@ export default function Playground() {
         e.preventDefault();
         pasteObject();
       }
+
+      if (e.key === "Delete" || e.key === "Backspace") {
+        e.preventDefault()
+        deleteSelectedObjects()
+      }
     };
 
     window.addEventListener("keydown", handleKeyDown);
@@ -103,6 +108,20 @@ export default function Playground() {
       canvasRef.current?.requestRenderAll();
     });
   };
+
+  const deleteSelectedObjects = () => {
+    if (!canvasRef) return
+
+    const activeObjects = canvasRef.current.getActiveObjects()
+    if (activeObjects.length === 0) return
+
+    activeObjects.forEach((obj: any) => {
+      canvasRef.current.remove(obj)
+    })
+
+    canvasRef.current.discardActiveObject()
+    canvasRef.current.renderAll()
+  }
 
   const addRect = () => {
     if (!canvasRef.current) return;
