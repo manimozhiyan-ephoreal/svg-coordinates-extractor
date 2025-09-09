@@ -159,7 +159,8 @@ export default function Playground() {
       width: 200,
       fontSize: 16,
       fill: "black",
-      backgroundColor: 'violet'
+      backgroundColor: 'violet',
+      editable:false
     });
     canvasRef.current.add(text)
   }
