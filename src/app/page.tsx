@@ -146,20 +146,64 @@ export default function Playground() {
       fill: "rgba(255,0,0,0.3)",
       stroke: "red",
       strokeWidth: 2,
+      lockUniScaling: true,
     });
     canvasRef.current.add(circle);
   };
 
-  const groupSelected = () => {
+  const addTextBox = () => {
     if (!canvasRef.current) return;
-    const active = canvasRef.current.getActiveObjects();
-    if (active.length > 1) {
-      const group = new fabric.Group(active, { subtopic: true });
-      canvasRef.current.discardActiveObject();
-      active.forEach((obj: any) => canvasRef.current?.remove(obj));
-      canvasRef.current.add(group);
+    const text = new fabric.Textbox("", {
+      left: 300,
+      top: 300,
+      width: 200,
+      fontSize: 16,
+      fill: "black",
+      backgroundColor: 'violet'
+    });
+    canvasRef.current.add(text)
+  }
+
+  const groupSelected = () => {
+  if (!canvasRef.current) return;
+  const active = canvasRef.current.getActiveObjects();
+
+  if (active.length === 0) return;
+
+  // Mapping placeholders
+  let iconObj: fabric.Object | null = null;
+  let titleObj: fabric.Object | null = null;
+  let contentObj: fabric.Object | null = null;
+
+  active.forEach((obj) => {
+    if (obj.type === "circle") {
+      iconObj = obj;
+    } else if (obj.type === "rect") {
+      titleObj = obj;
+    } else if (obj.type === "textbox") {
+      contentObj = obj;
     }
-  };
+  });
+
+  // Placeholders if missing
+  if (!iconObj) iconObj = new fabric.Object({ excludeFromExport: true }); // placeholder
+  if (!titleObj) titleObj = new fabric.Object({ excludeFromExport: true });
+  if (!contentObj) contentObj = new fabric.Object({ excludeFromExport: true });
+
+  // Remove actual objects from canvas
+  active.forEach((obj) => canvasRef.current?.remove(obj));
+
+  // Build group with only the real objects (placeholders excluded from render/export)
+  const group = new fabric.Group(
+    [iconObj, titleObj, contentObj].filter((o) => !(o as any).excludeFromExport),
+    { subtopic: true }
+  );
+
+  canvasRef.current.add(group);
+  canvasRef.current.discardActiveObject();
+  canvasRef.current.renderAll();
+};
+
 
   const extractJSON = () => {
     if (!canvasRef.current) return;
@@ -219,6 +263,9 @@ export default function Playground() {
         </button>
         <button onClick={addCircle} className="px-3 py-1 bg-red-500 text-white rounded">
           Add Circle
+        </button>
+        <button onClick={addTextBox} className="px-3 py-1 bg-violet-500 text-white rounded">
+          Add Content Box
         </button>
         <button onClick={groupSelected} className="px-3 py-1 bg-green-500 text-white rounded">
           Group as Subtopic
