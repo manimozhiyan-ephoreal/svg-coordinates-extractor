@@ -247,7 +247,7 @@ export default function Playground() {
 
     const link = document.createElement("a");
     link.href = URL.createObjectURL(blob);
-    link.download = `json${fileName.slice(3)}.json`;
+    link.download = `${fileName}.json`;
     link.click();
 
     console.log("Exported JSON:", JSON.stringify(jsonResult, null, 2));
