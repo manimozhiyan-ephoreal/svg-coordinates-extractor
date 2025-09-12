@@ -1,26 +1,64 @@
 "use client";
-
 import { useEffect, useRef, useState } from "react";
 import { fabric } from "fabric";
-import fs from 'fs';
+
+const baseLorem =
+  "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. ";
 
 export default function Playground() {
   const canvasRef = useRef<fabric.Canvas | null>(null);
   const [canvasReady, setCanvasReady] = useState(false);
   const clipboardRef = useRef<any>(null); // store copied object
-  let fileName = ''
+  let fileName = '' // track filename
+
+
   useEffect(() => {
     const canvas = new fabric.Canvas("canvas", {
-      width: 736,
-      height: 1306,
+      width: 800,
+      height: 1200,
       backgroundColor: "#f3f3f3",
     });
     canvasRef.current = canvas;
-    setCanvasReady(true);
+    canvas.selection = true;
 
-    // ✅ Add keyboard shortcuts for copy/paste
+    // Add keyboard shortcuts for copy/paste
     const handleKeyDown = (e: KeyboardEvent) => {
       if (!canvasRef.current) return;
+
+      const moveBy = 5; // number of pixels to move per key press
+      if (e.key === "ArrowUp") {
+        e.preventDefault();
+        canvasRef.current?.getActiveObjects().forEach((obj) => {
+          obj.top = (obj.top || 0) - moveBy;
+          obj.setCoords();
+        });
+        canvasRef.current?.requestRenderAll();
+      }
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        canvasRef.current?.getActiveObjects().forEach((obj) => {
+          obj.top = (obj.top || 0) + moveBy;
+          obj.setCoords();
+        });
+        canvasRef.current?.requestRenderAll();
+      }
+      if (e.key === "ArrowLeft") {
+        e.preventDefault();
+        canvasRef.current?.getActiveObjects().forEach((obj) => {
+          obj.left = (obj.left || 0) - moveBy;
+          obj.setCoords();
+        });
+        canvasRef.current?.requestRenderAll();
+      }
+      if (e.key === "ArrowRight") {
+        e.preventDefault();
+        canvasRef.current?.getActiveObjects().forEach((obj) => {
+          obj.left = (obj.left || 0) + moveBy;
+          obj.setCoords();
+        });
+        canvasRef.current?.requestRenderAll();
+      }
+
 
       // Detect Ctrl+C / Cmd+C
       if ((e.ctrlKey || e.metaKey) && e.key === "c") {
@@ -42,48 +80,72 @@ export default function Playground() {
 
     window.addEventListener("keydown", handleKeyDown);
 
+    canvas.on("selection:created", (e) => {
+      if (e.selected && e.selected.length > 0) {
+        console.log("Selected:", e.selected);
+      }
+    });
+
+    canvas.on("object:modified", (e) => {
+      console.log("Object Modified:", e.target);
+    });
+
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
       canvas.dispose();
     };
   }, []);
 
+  // handle svg upload
   const handleUploadSVG = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !canvasRef.current) return;
-    fileName = e.target.files[0].name.slice(0,-4)
-    console.log(fileName)
-
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const svgString = event.target?.result as string;
-      fabric.loadSVGFromString(svgString, (objects: any, options: any) => {
-        const svgGroup = fabric.util.groupSVGElements(objects, options);
-        svgGroup.selectable = false;
-        svgGroup.evented = false;
-        (svgGroup as any).excludeFromExport = true;
-        canvasRef.current?.add(svgGroup).sendToBack(svgGroup);
-      });
-    };
-    reader.readAsText(file);
+  const file = e.target.files?.[0];
+  if (!file || !canvasRef.current) return;
+  fileName = e.target.files[0].name.slice(0, -4);
+  const reader = new FileReader();
+  reader.onload = (event) => {
+    const svgString = event.target?.result as string;
+    fabric.loadSVGFromString(svgString, (objects: any, options: any) => {
+      const svgGroup = fabric.util.groupSVGElements(objects, options);
+      svgGroup.selectable = false;
+      svgGroup.evented = false;
+      (svgGroup as any).excludeFromExport = true;
+      canvasRef.current?.add(svgGroup).sendToBack(svgGroup);
+    });
   };
+  reader.readAsText(file);
+};
 
-  // ✅ Copy selected object/group
+  // Copy selected object/group
   const copyObject = () => {
     if (!canvasRef.current) return;
     const activeObject = canvasRef.current.getActiveObject();
     if (activeObject) {
       activeObject.clone((cloned: any) => {
         clipboardRef.current = cloned;
-      });
+      }, ["role"]); // include "role" in propertiesToInclude array
     }
   };
 
-  // ✅ Paste cloned object
+
+  // Paste cloned object
   const pasteObject = () => {
     if (!canvasRef.current || !clipboardRef.current) return;
 
     clipboardRef.current.clone((clonedObj: any) => {
+      // Manually copy role if missing
+      if (clipboardRef.current.role) {
+        clonedObj.role = clipboardRef.current.role;
+      }
+      // If it's a group/activeSelection, copy roles for members
+      if (clonedObj.type === "activeSelection") {
+        clonedObj.forEachObject((obj: any, idx: number) => {
+          const origObj = clipboardRef.current._objects[idx];
+          if (origObj && origObj.role) {
+            obj.role = origObj.role;
+          }
+        });
+      }
+
       canvasRef.current?.discardActiveObject();
 
       clonedObj.set({
@@ -123,135 +185,175 @@ export default function Playground() {
     canvasRef.current.renderAll()
   }
 
-  const addRect = () => {
+  const addTopicBox = () => {
     if (!canvasRef.current) return;
-    const rect = new fabric.Rect({
-      left: 100,
-      top: 100,
-      fill: "rgba(0,0,255,0.3)",
-      width: 100,
-      height: 60,
-      stroke: "blue",
-      strokeWidth: 2,
-    });
-    canvasRef.current.add(rect);
-  };
-
-  const addCircle = () => {
-    if (!canvasRef.current) return;
-    const circle = new fabric.Circle({
-      left: 200,
-      top: 200,
-      radius: 40,
-      fill: "rgba(255,0,0,0.3)",
-      stroke: "red",
-      strokeWidth: 2,
-      lockUniScaling: true,
-    });
-    canvasRef.current.add(circle);
-  };
-
-  const addTextBox = () => {
-    if (!canvasRef.current) return;
-    const text = new fabric.Textbox("", {
-      left: 300,
-      top: 300,
-      width: 200,
-      fontSize: 16,
+    const topic = new fabric.Textbox("Topic", {
+      left: 10,
+      top: 390,
+      width: 220,
+      height: 160,
+      fontSize: 28,
+      fontFamily: "Arial",
       fill: "black",
-      backgroundColor: 'violet',
-      editable:false
+      backgroundColor: "#ffff99",
+      role: "topic",
+      editable: true,
     });
-    canvasRef.current.add(text)
-  }
+    canvasRef.current.add(topic);
+  };
 
-  const groupSelected = () => {
-  if (!canvasRef.current) return;
-  const active = canvasRef.current.getActiveObjects();
+  const addSubtopicObjects = () => {
+    if (!canvasRef.current) return;
+    const baseLeft = 336,
+      baseTop = 64;
+    let initialText = baseLorem.slice(0, 120);
 
-  if (active.length === 0) return;
+    const icon = new fabric.Circle({
+      left: baseLeft,
+      top: baseTop,
+      radius: 40,
+      fill: "#5dd0f3",
+      stroke: "#1b8ab3",
+      strokeWidth: 2,
+      role: "icon",
+      selectable: true,
+    });
 
-  // Mapping placeholders
-  let iconObj: fabric.Object | null = null;
-  let titleObj: fabric.Object | null = null;
-  let contentObj: fabric.Object | null = null;
+    const title = new fabric.Textbox("Subtopic Title", {
+      left: baseLeft + 102,
+      top: baseTop + 26,
+      width: 257,
+      height: 50,
+      fontSize: 18,
+      fontFamily: "Georgia",
+      fill: "darkblue",
+      backgroundColor: "#cfeafb",
+      role: "subtopic-title",
+      editable: true,
+    });
 
-  active.forEach((obj) => {
-    if (obj.type === "circle") {
-      iconObj = obj;
-    } else if (obj.type === "rect") {
-      titleObj = obj;
-    } else if (obj.type === "textbox") {
-      contentObj = obj;
-    }
-  });
+    const content = new fabric.Textbox(initialText, {
+      left: baseLeft + 101,
+      top: baseTop + 88,
+      width: 260,
+      height: 170,
+      fontSize: 18,
+      fontFamily: "Georgia",
+      fill: "black",
+      backgroundColor: "#f5f5f5",
+      role: "subtopic-content",
+      editable: true,
+      lockScalingY: false,
+    });
 
-  // Placeholders if missing
-  if (!iconObj) iconObj = new fabric.Object({ excludeFromExport: true }); // placeholder
-  if (!titleObj) titleObj = new fabric.Object({ excludeFromExport: true });
-  if (!contentObj) contentObj = new fabric.Object({ excludeFromExport: true });
+    content.on("scaling", () => {
+      // Horizontal behavior: expand text length as width increases
+      const scaledWidth = content.width * content.scaleX;
+      let charCount = Math.floor(scaledWidth * 0.5);
+      charCount = Math.min(charCount, baseLorem.length * 10);
+      const repeatedLorem = baseLorem.repeat(Math.ceil(charCount / baseLorem.length));
+      content.text = repeatedLorem.slice(0, charCount);
 
-  // Remove actual objects from canvas
-  active.forEach((obj) => canvasRef.current?.remove(obj));
+      // Reset scaleX to avoid distortion, update width instead
+      content.scaleX = 1;
+      content.set({ width: scaledWidth });
 
-  // Build group with only the real objects (placeholders excluded from render/export)
-  const group = new fabric.Group(
-    [iconObj, titleObj, contentObj].filter((o) => !(o as any).excludeFromExport),
-    { subtopic: true }
-  );
+      // Vertical behavior: handle scaleY (vertical resize)
+      const scaledHeight = content.height * content.scaleY;
+      content.scaleY = 1; // reset scaleY
+      content.set({ height: scaledHeight });
 
-  canvasRef.current.add(group);
-  canvasRef.current.discardActiveObject();
-  canvasRef.current.renderAll();
-};
+      content.canvas.requestRenderAll();
+    });
 
+    canvasRef.current.add(icon);
+    canvasRef.current.add(title);
+    canvasRef.current.add(content);
+  };
 
   const extractJSON = () => {
     if (!canvasRef.current) return;
-
-    const objects = canvasRef.current.getObjects().filter((o: any) => !o.excludeFromExport);
-
-    const topicObj = objects.find((o: any) => !("subtopic" in o));
-    const subtopicGroups = objects.filter((o: any) => (o as any).subtopic);
+    let topicObj = canvasRef.current
+      .getObjects("textbox")
+      .find((obj) => obj.role === "topic");
+    let icons = canvasRef.current
+      .getObjects("circle")
+      .filter((obj) => obj.role === "icon");
+    let titles = canvasRef.current
+      .getObjects("textbox")
+      .filter((obj) => obj.role === "subtopic-title");
+    let contents = canvasRef.current
+      .getObjects("textbox")
+      .filter((obj) => obj.role === "subtopic-content");
 
     const topic = topicObj
       ? {
           x: topicObj.left || 0,
           y: topicObj.top || 0,
-          width: topicObj.width ? topicObj.width * topicObj.scaleX! : 0,
-          height: topicObj.height ? topicObj.height * topicObj.scaleY! : 0,
+          width: topicObj.width ? topicObj.width * (topicObj.scaleX || 1) : 0,
+          height: topicObj.height ? topicObj.height * (topicObj.scaleY || 1) : 0,
         }
       : null;
 
-    const subtopics = subtopicGroups.map((group: any) => {
-      const g = group as fabric.Group;
-      const members = g.getObjects();
-
-      const entry: any = {};
-      ["icon", "title", "content"].forEach((label, idx) => {
-        const obj = members[idx];
-        if (obj) {
-          entry[label] = {
-            x: obj.left || 0,
-            y: obj.top || 0,
-            width: obj.width ? obj.width * obj.scaleX! : 0,
-            height: obj.height ? obj.height * obj.scaleY! : 0,
-          };
-        }
-      });
-      return entry;
+    const subtopics = icons.map((iconObj, idx) => {
+      const titleObj = titles[idx];
+      const contentObj = contents[idx];
+      return {
+        icon: iconObj
+          ? {
+              x: iconObj.left || 0,
+              y: iconObj.top || 0,
+              width: iconObj.radius
+                ? iconObj.radius * 2 * (iconObj.scaleX || 1)
+                : iconObj.width * (iconObj.scaleX || 1),
+              height: iconObj.radius
+                ? iconObj.radius * 2 * (iconObj.scaleY || 1)
+                : iconObj.height * (iconObj.scaleY || 1),
+            }
+          : {},
+        title: titleObj
+          ? {
+              x: titleObj.left || 0,
+              y: titleObj.top || 0,
+              width: titleObj.width ? titleObj.width * (titleObj.scaleX || 1) : 0,
+              height: titleObj.height
+                ? titleObj.height * (titleObj.scaleY || 1)
+                : 0,
+              fontSize: titleObj.fontSize,
+              fontFamily: titleObj.fontFamily,
+              numChars: titleObj.text.length,
+            }
+          : {},
+        content: contentObj
+          ? {
+              x: contentObj.left || 0,
+              y: contentObj.top || 0,
+              width: contentObj.width
+                ? contentObj.width * (contentObj.scaleX || 1)
+                : 0,
+              height: contentObj.height
+                ? contentObj.height * (contentObj.scaleY || 1)
+                : 0,
+              fontSize: contentObj.fontSize,
+              fontFamily: contentObj.fontFamily,
+              numChars: contentObj.text.length,
+            }
+          : {},
+      };
     });
-    
-    const jsonResult = { topic, subtopics };
-    const blob = new Blob([JSON.stringify(jsonResult, null, 4)], { type: "application/json" });
 
+    const result = { topic, subtopics };
+
+    const blob = new Blob([JSON.stringify(result, null, 4)], {
+      type: "application/json",
+    });
     const link = document.createElement("a");
     link.href = URL.createObjectURL(blob);
     link.download = `${fileName}.json`;
+    console.log(fileName)
     link.click();
-
-    console.log("Exported JSON:", JSON.stringify(jsonResult, null, 2));
-    alert("Check console for extracted JSON!");
+    console.log("Exported JSON:", JSON.stringify(result, null, 2));
+    alert("Exported JSON to file. Check console for preview.");
   };
 
   return (
@@ -259,24 +361,34 @@ export default function Playground() {
       <h1 className="text-xl font-bold mb-2">Infographic Playground</h1>
       <div className="flex gap-2 mb-4">
         <input type="file" accept=".svg" onChange={handleUploadSVG} />
-        <button onClick={addRect} className="px-3 py-1 bg-blue-500 text-white rounded">
-          Add Rectangle
+        <button
+          onClick={addTopicBox}
+          className="px-3 py-1 bg-yellow-500 text-black rounded"
+        >
+          Add Topic Box
         </button>
-        <button onClick={addCircle} className="px-3 py-1 bg-red-500 text-white rounded">
-          Add Circle
+        <button
+          onClick={addSubtopicObjects}
+          className="px-3 py-1 bg-blue-500 text-white rounded"
+        >
+          Add Subtopic Objects
         </button>
-        <button onClick={addTextBox} className="px-3 py-1 bg-violet-500 text-white rounded">
-          Add Content Box
-        </button>
-        <button onClick={groupSelected} className="px-3 py-1 bg-green-500 text-white rounded">
-          Group as Subtopic
-        </button>
-        <button onClick={extractJSON} className="px-3 py-1 bg-gray-700 text-white rounded">
+        <button
+          onClick={extractJSON}
+          className="px-3 py-1 bg-gray-700 text-white rounded"
+        >
           Export JSON
         </button>
       </div>
-      <p className="text-sm text-gray-600 mb-2">💡 Use Ctrl+C / Ctrl+V (Cmd+C / Cmd+V on Mac) to copy & paste objects.</p>
       <canvas id="canvas" className="border border-gray-400" />
+      <p className="text-sm text-gray-600 mt-2">
+        All canvas objects can be individually selected, moved, resized, and
+        edited.
+        <br />
+        Click any textbox and type to change its text; drag/scale all objects.
+        <br />
+        JSON export will reflect individual object edits!
+      </p>
     </div>
   );
 }
