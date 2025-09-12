@@ -187,7 +187,8 @@ export default function Playground() {
 
   const addTopicBox = () => {
     if (!canvasRef.current) return;
-    const topic = new fabric.Textbox("Topic", {
+    const initialText = baseLorem.slice(0, 15);
+    const topic = new fabric.Textbox(initialText, {
       left: 10,
       top: 390,
       width: 220,
@@ -198,14 +199,43 @@ export default function Playground() {
       backgroundColor: "#ffff99",
       role: "topic",
       editable: true,
+      lockScalingY: true
     });
-    canvasRef.current.add(topic);
-  };
+    
+
+topic.on("scaling", () => {
+  // Calculate the actual scaled width from original width and current scaleX
+  const scaledWidth = topic.width * topic.scaleX;
+
+  // Calculate how many characters to display based on scaledWidth
+  let charCount = Math.floor(scaledWidth * 0.5);
+  charCount = Math.min(charCount, baseLorem.length * 10);
+
+  // Repeat lorem text and slice to required char count
+  const repeatedLorem = baseLorem.repeat(Math.ceil(charCount / baseLorem.length));
+  topic.text = repeatedLorem.slice(0, charCount);
+
+  // Reset scaleX to 1 (actual width changes)
+  topic.set({
+    width: scaledWidth,
+    scaleX: 1,
+  });
+
+  // Keep vertical scale locked (or fixed height)
+  topic.scaleY = 1;
+  topic.set({ height: topic.height });
+
+  topic.canvas.requestRenderAll();
+});
+
+  canvasRef.current.add(topic);
+};
+
 
   const addSubtopicObjects = () => {
     if (!canvasRef.current) return;
     const baseLeft = 336,
-      baseTop = 64;
+    baseTop = 64;
     let initialText = baseLorem.slice(0, 120);
 
     const icon = new fabric.Circle({
@@ -219,7 +249,8 @@ export default function Playground() {
       selectable: true,
     });
 
-    const title = new fabric.Textbox("Subtopic Title", {
+    const initialTitleText = baseLorem.slice(0, 15);
+    const title = new fabric.Textbox(initialTitleText, {
       left: baseLeft + 102,
       top: baseTop + 26,
       width: 257,
@@ -230,6 +261,24 @@ export default function Playground() {
       backgroundColor: "#cfeafb",
       role: "subtopic-title",
       editable: true,
+    });
+
+    
+    title.on("scaling", () => {
+      const scaledWidth = title.width * title.scaleX;
+      let charCount = Math.floor(scaledWidth * 0.5);
+      charCount = Math.min(charCount, baseLorem.length * 10);
+      const repeatedLorem = baseLorem.repeat(Math.ceil(charCount / baseLorem.length));
+      title.text = repeatedLorem.slice(0, charCount);
+
+      title.scaleX = 1;
+      title.set({ width: scaledWidth });
+
+      const scaledHeight = title.height * title.scaleY;
+      title.scaleY = 1;
+      title.set({ height: scaledHeight });
+
+      title.canvas.requestRenderAll();
     });
 
     const content = new fabric.Textbox(initialText, {
@@ -243,7 +292,6 @@ export default function Playground() {
       backgroundColor: "#f5f5f5",
       role: "subtopic-content",
       editable: true,
-      lockScalingY: false,
     });
 
     content.on("scaling", () => {
@@ -292,6 +340,9 @@ export default function Playground() {
           y: topicObj.top || 0,
           width: topicObj.width ? topicObj.width * (topicObj.scaleX || 1) : 0,
           height: topicObj.height ? topicObj.height * (topicObj.scaleY || 1) : 0,
+          fontSize: topicObj.fontSize,
+          fontFamily: topicObj.fontFamily,
+          numChars: topicObj.text.length,
         }
       : null;
 
